@@ -1,0 +1,37 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: flowpulse-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/flowpulse}
+    username: ${DB_USER:flowpulse}
+    password: ${DB_PASSWORD:flowpulse}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        default_schema: app
+    open-in-view: false
+
+flowpulse:
+  jwt:
+    # Clé HMAC d'au moins 32 caractères, à fournir par variable d'environnement en dehors du développement
+    secret: ${JWT_SECRET:dev-only-change-me-dev-only-change-me-0123456789}
+    access-minutes: ${JWT_ACCESS_MINUTES:15}
+    refresh-days: ${JWT_REFRESH_DAYS:7}
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  ai-service:
+    url: ${AI_SERVICE_URL:http://localhost:8000}
+  bootstrap-admin:
+    email: ${ADMIN_EMAIL:admin@flowpulse.local}
+    password: ${ADMIN_PASSWORD:admin123}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
