@@ -31,8 +31,12 @@ class AiGatewayTest {
     @MockBean AiClient ai;
 
     private String token(String email) throws Exception {
+        return token(email, "demo-test-pass");
+    }
+
+    private String token(String email, String password) throws Exception {
         String body = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"password\":\"demo-test-pass\"}"))
+                        .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         return "Bearer " + json.readTree(body).get("accessToken").asText();
     }
@@ -82,5 +86,21 @@ class AiGatewayTest {
         mvc.perform(get("/api/zones").header("Authorization", token("urbaniste@flowpulse.local")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].zone").value("Grand Dakar"));
+    }
+
+    @Test
+    void lAdministrateurAAccesATout() throws Exception {
+        when(ai.post(eq("/ai/watcher/run"), any())).thenReturn(json.readTree("{\"trace_id\":\"T-2\",\"alertes\":[]}"));
+        when(ai.post(eq("/ai/recommendations/R-2/decision"), any())).thenReturn(json.readTree("{\"id\":\"R-2\",\"statut\":\"APPLIQUEE\"}"));
+        when(ai.post(eq("/ai/assistant"), any())).thenReturn(json.readTree("{\"trace_id\":\"T-3\",\"reponse\":\"ok\"}"));
+        String admin = token("admin@test.local", "admin-test-pass");
+
+        mvc.perform(post("/api/alerts/run").header("Authorization", admin)).andExpect(status().isOk());
+        mvc.perform(post("/api/recommendations/R-2/decision").header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"appliquer\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/assistant").header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"question\":\"Etat du trafic ?\"}"))
+                .andExpect(status().isOk());
     }
 }

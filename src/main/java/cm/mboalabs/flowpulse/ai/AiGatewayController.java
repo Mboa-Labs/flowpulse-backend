@@ -80,7 +80,7 @@ public class AiGatewayController {
     }
 
     @PostMapping("/assistant")
-    @PreAuthorize("hasAnyRole('GESTIONNAIRE','OPERATEUR','URBANISTE')")
+    @PreAuthorize("hasAnyRole('GESTIONNAIRE','OPERATEUR','URBANISTE','ADMIN')")
     public JsonNode ask(@Valid @RequestBody AskRequest body, @AuthenticationPrincipal AuthenticatedUser user) {
         JsonNode result = ai.post("/ai/assistant", Map.of("question", body.question()));
         audit.log(user.id(), "QUESTION_SUPERVISEUR", "trace:" + result.path("trace_id").asText(), body.question());
