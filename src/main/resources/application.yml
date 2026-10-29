@@ -29,6 +29,9 @@ flowpulse:
   bootstrap-admin:
     email: ${ADMIN_EMAIL:admin@flowpulse.local}
     password: ${ADMIN_PASSWORD:admin123}
+  demo-users:
+    enabled: ${DEMO_USERS:false}
+    password: ${DEMO_PASSWORD:demo1234}
 
 management:
   endpoints:
