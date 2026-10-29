@@ -4,6 +4,8 @@ import cm.mboalabs.flowpulse.audit.AuditService;
 import cm.mboalabs.flowpulse.auth.AuthenticatedUser;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -16,11 +18,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Passerelle vers le service IA : le frontend ne parle qu'au backend, qui contrôle les rôles
- * et journalise les actions critiques (lancement de surveillance, décision sur une recommandation).
+ * et journalise les actions critiques (surveillance, décision sur une recommandation, simulation).
  */
 @RestController
 @RequestMapping("/api")
@@ -30,7 +33,17 @@ public class AiGatewayController {
 
     public record DecisionRequest(@NotBlank @Pattern(regexp = "appliquer|rejeter") String decision, @Size(max = 500) String motif) {}
 
-    private static final String ID = "[A-Za-z0-9-]{1,40}";
+    public record ScenarioRequest(
+            @NotBlank @Pattern(regexp = "fermeture|evenement|renfort") String type,
+            @NotBlank @Size(max = 80) String zone,
+            @Pattern(regexp = HEURE) String debut,
+            @Pattern(regexp = HEURE) String fin,
+            @Min(0) @Max(200_000) Integer participants,
+            @Min(0) @Max(50) Integer nbBus) {}
+
+    private static final String HEURE = "([01][0-9]|2[0-3]):[0-5][0-9]";
+
+    private static final String ID ="[A-Za-z0-9-]{1,40}";
 
     private final AiClient ai;
     private final AuditService audit;
@@ -90,6 +103,33 @@ public class AiGatewayController {
     @GetMapping("/traces/{id:" + ID + "}")
     public JsonNode trace(@PathVariable String id) {
         return ai.get("/ai/traces/" + id);
+    }
+
+    @PostMapping("/scenarios")
+    @PreAuthorize("hasAnyRole('URBANISTE','ADMIN')")
+    public JsonNode simulate(@Valid @RequestBody ScenarioRequest body, @AuthenticationPrincipal AuthenticatedUser user) {
+        Map<String, Object> scenario = new HashMap<>();
+        scenario.put("type", body.type());
+        scenario.put("zone", body.zone());
+        if (body.debut() != null) scenario.put("debut", body.debut());
+        if (body.fin() != null) scenario.put("fin", body.fin());
+        scenario.put("participants", body.participants() == null ? 0 : body.participants());
+        scenario.put("nb_bus", body.nbBus() == null ? 0 : body.nbBus());
+        JsonNode result = ai.post("/ai/simulations", scenario);
+        audit.log(user.id(), "SIMULATION_LANCEE", "simulation:" + result.path("id").asText(), result.path("libelle").asText());
+        return result;
+    }
+
+    @GetMapping("/scenarios")
+    @PreAuthorize("hasAnyRole('URBANISTE','ADMIN')")
+    public JsonNode simulations() {
+        return ai.get("/ai/simulations");
+    }
+
+    @GetMapping("/scenarios/{id:" + ID + "}")
+    @PreAuthorize("hasAnyRole('URBANISTE','ADMIN')")
+    public JsonNode simulation(@PathVariable String id) {
+        return ai.get("/ai/simulations/" + id);
     }
 
     @GetMapping("/gaps")

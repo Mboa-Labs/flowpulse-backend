@@ -103,4 +103,22 @@ class AiGatewayTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"question\":\"Etat du trafic ?\"}"))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void lUrbanisteSimuleEtLOperateurNonEtLActionEstJournalisee() throws Exception {
+        when(ai.post(eq("/ai/simulations"), any())).thenReturn(json.readTree("{\"id\":\"S-1\",\"libelle\":\"Fermeture\"}"));
+        String scenario = "{\"type\":\"fermeture\",\"zone\":\"Grand Dakar\",\"debut\":\"08:00\",\"fin\":\"12:00\"}";
+
+        mvc.perform(post("/api/scenarios").header("Authorization", token("operateur@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content(scenario))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/scenarios").header("Authorization", token("urbaniste@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content(scenario.replace("08:00", "8h")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/scenarios").header("Authorization", token("urbaniste@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content(scenario))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("S-1"));
+        assertThat(auditLogs.findAll()).anyMatch(l -> l.getAction().equals("SIMULATION_LANCEE"));
+    }
 }
