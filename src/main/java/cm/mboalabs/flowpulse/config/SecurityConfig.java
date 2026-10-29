@@ -2,6 +2,7 @@ package cm.mboalabs.flowpulse.config;
 
 import cm.mboalabs.flowpulse.auth.JwtAuthFilter;
 import cm.mboalabs.flowpulse.auth.JwtService;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -31,6 +32,8 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Page d'erreur interne : sans elle, une 503 du service IA ressortait en 401
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
                         .requestMatchers("/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Webhooks des agents : réseau Docker interne uniquement (le proxy du frontend ne les expose pas)
