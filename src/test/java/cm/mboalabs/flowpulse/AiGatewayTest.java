@@ -11,13 +11,17 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -120,5 +124,46 @@ class AiGatewayTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("S-1"));
         assertThat(auditLogs.findAll()).anyMatch(l -> l.getAction().equals("SIMULATION_LANCEE"));
+    }
+
+    @Test
+    void alerteAcquitteeEtTransmiseAvecLAuteurEtJournalisee() throws Exception {
+        when(ai.post(eq("/ai/alerts/A-1/action"), any())).thenReturn(json.readTree("{\"id\":\"A-1\",\"zone\":\"Grand Dakar\",\"statut\":\"TRANSMISE\"}"));
+        mvc.perform(post("/api/alerts/A-1/ack").header("Authorization", token("operateur@flowpulse.local")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/alerts/A-1/transmit").header("Authorization", token("operateur@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"destinataire\":\"Police\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/alerts/A-1/transmit").header("Authorization", token("gestionnaire@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"destinataire\":\"\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/alerts/A-1/transmit").header("Authorization", token("gestionnaire@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"destinataire\":\"Police municipale\"}"))
+                .andExpect(status().isOk());
+        verify(ai).post(eq("/ai/alerts/A-1/action"), eq(Map.of("action", "acquitter", "par", "operateur@flowpulse.local")));
+        assertThat(auditLogs.findAll()).anyMatch(l -> l.getAction().equals("ALERTE_TRANSMISE") && l.getDetails().contains("Police municipale"));
+    }
+
+    @Test
+    void leJournalDAuditEstReserveALAdministrateurEtExportable() throws Exception {
+        mvc.perform(get("/api/admin/audit").header("Authorization", token("gestionnaire@flowpulse.local")))
+                .andExpect(status().isForbidden());
+        String admin = token("admin@test.local", "admin-test-pass");
+        mvc.perform(get("/api/admin/audit").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entrees").isArray())
+                .andExpect(jsonPath("$.total").isNumber());
+        mvc.perform(get("/api/admin/audit/export").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(content().string(startsWith("date;utilisateur;action")));
+    }
+
+    @Test
+    void seulLAdministrateurRelanceLIndexation() throws Exception {
+        when(ai.post(eq("/ai/kb/reindex"), any())).thenReturn(json.readTree("{\"etat\":\"en_cours\"}"));
+        mvc.perform(post("/api/kb/reindex").header("Authorization", token("urbaniste@flowpulse.local")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/kb/reindex").header("Authorization", token("admin@test.local", "admin-test-pass")))
+                .andExpect(status().isOk());
     }
 }

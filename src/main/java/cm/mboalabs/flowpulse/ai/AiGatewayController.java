@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * Passerelle vers le service IA : le frontend ne parle qu'au backend, qui contrôle les rôles
- * et journalise les actions critiques (surveillance, décision sur une recommandation, simulation).
+ * et journalise les actions critiques (surveillance, alertes, décisions, simulations, base de connaissances).
  */
 @RestController
 @RequestMapping("/api")
@@ -40,6 +40,8 @@ public class AiGatewayController {
             @Pattern(regexp = HEURE) String fin,
             @Min(0) @Max(200_000) Integer participants,
             @Min(0) @Max(50) Integer nbBus) {}
+
+    public record TransmitRequest(@NotBlank @Size(max = 120) String destinataire, @Size(max = 500) String note) {}
 
     private static final String HEURE = "([01][0-9]|2[0-3]):[0-5][0-9]";
 
@@ -69,6 +71,48 @@ public class AiGatewayController {
     public JsonNode runWatcher(@AuthenticationPrincipal AuthenticatedUser user) {
         JsonNode result = ai.post("/ai/watcher/run", null);
         audit.log(user.id(), "SURVEILLANCE_LANCEE", "trace:" + result.path("trace_id").asText(), null);
+        return result;
+    }
+
+    @PostMapping("/alerts/{id:" + ID + "}/ack")
+    @PreAuthorize("hasAnyRole('GESTIONNAIRE','OPERATEUR','ADMIN')")
+    public JsonNode acknowledge(@PathVariable String id, @AuthenticationPrincipal AuthenticatedUser user) {
+        JsonNode result = ai.post("/ai/alerts/" + id + "/action", Map.of("action", "acquitter", "par", user.email()));
+        audit.log(user.id(), "ALERTE_ACQUITTEE", "alerte:" + id, result.path("zone").asText());
+        return result;
+    }
+
+    @PostMapping("/alerts/{id:" + ID + "}/transmit")
+    @PreAuthorize("hasAnyRole('GESTIONNAIRE','ADMIN')")
+    public JsonNode transmit(@PathVariable String id, @Valid @RequestBody TransmitRequest body,
+                             @AuthenticationPrincipal AuthenticatedUser user) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("action", "transmettre");
+        payload.put("par", user.email());
+        payload.put("destinataire", body.destinataire());
+        payload.put("note", body.note());
+        JsonNode result = ai.post("/ai/alerts/" + id + "/action", payload);
+        audit.log(user.id(), "ALERTE_TRANSMISE", "alerte:" + id, "à " + body.destinataire() + (body.note() == null ? "" : " : " + body.note()));
+        return result;
+    }
+
+    @GetMapping("/stops")
+    @PreAuthorize("hasAnyRole('GESTIONNAIRE','OPERATEUR','ADMIN')")
+    public JsonNode stops() {
+        return ai.get("/ai/stops");
+    }
+
+    @GetMapping("/kb/documents")
+    @PreAuthorize("hasAnyRole('URBANISTE','GESTIONNAIRE','ADMIN')")
+    public JsonNode kbDocuments() {
+        return ai.get("/ai/kb/documents");
+    }
+
+    @PostMapping("/kb/reindex")
+    @PreAuthorize("hasRole('ADMIN')")
+    public JsonNode kbReindex(@AuthenticationPrincipal AuthenticatedUser user) {
+        JsonNode result = ai.post("/ai/kb/reindex", null);
+        audit.log(user.id(), "KB_REINDEXATION", "base_connaissances", result.path("etat").asText());
         return result;
     }
 
