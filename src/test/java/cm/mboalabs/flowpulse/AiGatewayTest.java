@@ -166,4 +166,30 @@ class AiGatewayTest {
         mvc.perform(post("/api/kb/reindex").header("Authorization", token("admin@test.local", "admin-test-pass")))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void lHorlogeSeRegleParLeGestionnaireEtEstJournalisee() throws Exception {
+        when(ai.post(eq("/ai/horloge"), any())).thenReturn(json.readTree("{\"source\":\"d4d\",\"t\":\"2013-10-15T12:00\"}"));
+        mvc.perform(post("/api/horloge").header("Authorization", token("operateur@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"t\":\"2013-10-15T12:00\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/horloge").header("Authorization", token("gestionnaire@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"t\":\"demain\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/horloge").header("Authorization", token("gestionnaire@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"t\":\"2013-10-15T12:00\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.t").value("2013-10-15T12:00"));
+        assertThat(auditLogs.findAll()).anyMatch(l -> l.getAction().equals("HORLOGE_REGLEE"));
+    }
+
+    @Test
+    void laSerieDUneZoneEstRelayeeAvecSonNom() throws Exception {
+        when(ai.get(eq("/ai/zones/serie?zone={zone}&heures={heures}"), eq("Grand Dakar"), eq(12)))
+                .thenReturn(json.readTree("[{\"t\":\"2013-11-12T18:00\",\"observe\":91}]"));
+        mvc.perform(get("/api/zones/serie").param("zone", "Grand Dakar").param("heures", "12")
+                        .header("Authorization", token("gestionnaire@flowpulse.local")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].observe").value(91));
+    }
 }

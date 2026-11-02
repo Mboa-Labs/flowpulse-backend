@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
@@ -41,6 +42,8 @@ public class AiGatewayController {
             @Min(0) @Max(200_000) Integer participants,
             @Min(0) @Max(50) Integer nbBus) {}
 
+    public record HorlogeRequest(@NotBlank @Pattern(regexp = "2013-[0-9]{2}-[0-9]{2}[T ][0-9]{2}(:[0-9]{2})?") String t) {}
+
     public record TransmitRequest(@NotBlank @Size(max = 120) String destinataire, @Size(max = 500) String note) {}
 
     private static final String HEURE = "([01][0-9]|2[0-3]):[0-5][0-9]";
@@ -58,6 +61,26 @@ public class AiGatewayController {
     @GetMapping("/zones")
     public JsonNode zones() {
         return ai.get("/ai/zones");
+    }
+
+    @GetMapping("/zones/serie")
+    public JsonNode zoneSerie(@RequestParam @Pattern(regexp = "[\\p{L} '-]{1,60}") String zone,
+                              @RequestParam(defaultValue = "24") @Min(1) @Max(168) int heures) {
+        return ai.get("/ai/zones/serie?zone={zone}&heures={heures}", zone, heures);
+    }
+
+    /** Horloge de démonstration : l'instant de 2013 rejoué par l'application. */
+    @GetMapping("/horloge")
+    public JsonNode horloge() {
+        return ai.get("/ai/horloge");
+    }
+
+    @PostMapping("/horloge")
+    @PreAuthorize("hasAnyRole('GESTIONNAIRE','URBANISTE','ADMIN')")
+    public JsonNode reglerHorloge(@Valid @RequestBody HorlogeRequest body, @AuthenticationPrincipal AuthenticatedUser user) {
+        JsonNode result = ai.post("/ai/horloge", Map.of("t", body.t()));
+        audit.log(user.id(), "HORLOGE_REGLEE", "horloge", result.path("t").asText());
+        return result;
     }
 
     @GetMapping("/alerts")

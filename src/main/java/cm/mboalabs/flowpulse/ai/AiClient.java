@@ -31,6 +31,11 @@ public class AiClient {
         return call(() -> rest.get().uri(path).retrieve().body(JsonNode.class));
     }
 
+    /** GET avec variables d'adresse encodées par RestClient (noms de zones avec espaces ou accents). */
+    public JsonNode get(String template, Object... variables) {
+        return call(() -> rest.get().uri(template, variables).retrieve().body(JsonNode.class));
+    }
+
     public JsonNode post(String path, Object body) {
         return call(() -> rest.post().uri(path).contentType(MediaType.APPLICATION_JSON).body(body == null ? "{}" : body)
                 .retrieve().body(JsonNode.class));
