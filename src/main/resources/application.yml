@@ -1,5 +1,8 @@
 server:
   port: 8080
+  # Derrière nginx (HTTPS) : l'en-tête X-Forwarded-Proto donne le vrai schéma. Sans cela, une requête de la page
+  # https://domaine vers https://domaine/api paraît venir d'une autre origine et la protection CORS la refuse (403).
+  forward-headers-strategy: framework
 
 spring:
   application:

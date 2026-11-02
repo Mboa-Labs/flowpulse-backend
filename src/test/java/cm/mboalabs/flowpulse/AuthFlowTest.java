@@ -76,4 +76,19 @@ class AuthFlowTest {
     void routeProtegeeSansJetonRenvoie401() throws Exception {
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void laPageServieEnHttpsDerriereNginxPeutSeConnecterMaisPasUnAutreSite() throws Exception {
+        String identifiants = "{\"email\":\"inconnu@flowpulse.local\",\"password\":\"mauvais\"}";
+        // Même origine que la page, une fois le schéma HTTPS restitué par X-Forwarded-Proto : pas de blocage CORS
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(identifiants)
+                        .header("X-Forwarded-Host", "flowpulse.exemple.org").header("X-Forwarded-Proto", "https")
+                        .header("Origin", "https://flowpulse.exemple.org"))
+                .andExpect(status().isUnauthorized());
+        // Une autre origine reste refusée
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(identifiants)
+                        .header("X-Forwarded-Host", "flowpulse.exemple.org").header("X-Forwarded-Proto", "https")
+                        .header("Origin", "https://site-tiers.exemple.com"))
+                .andExpect(status().isForbidden());
+    }
 }
