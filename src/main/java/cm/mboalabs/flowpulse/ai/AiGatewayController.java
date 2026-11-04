@@ -69,6 +69,12 @@ public class AiGatewayController {
         return ai.get("/ai/zones/serie?zone={zone}&heures={heures}", zone, heures);
     }
 
+    /** Contours des zones (GeoJSON) pour la carte. */
+    @GetMapping("/territoire/carte")
+    public JsonNode carte() {
+        return ai.get("/ai/territoire/carte");
+    }
+
     /** Horloge de démonstration : l'instant de 2013 rejoué par l'application. */
     @GetMapping("/horloge")
     public JsonNode horloge() {
