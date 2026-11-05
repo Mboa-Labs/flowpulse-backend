@@ -40,7 +40,8 @@ public class AiGatewayController {
             @Pattern(regexp = HEURE) String debut,
             @Pattern(regexp = HEURE) String fin,
             @Min(0) @Max(200_000) Integer participants,
-            @Min(0) @Max(50) Integer nbBus) {}
+            @Min(0) @Max(50) Integer nbBus,
+            @Size(max = 80) @Pattern(regexp = "[a-z0-9-]+") String lieu) {}
 
     public record HorlogeRequest(@NotBlank @Pattern(regexp = "2013-[0-9]{2}-[0-9]{2}[T ][0-9]{2}(:[0-9]{2})?") String t) {}
 
@@ -73,6 +74,12 @@ public class AiGatewayController {
     @GetMapping("/territoire/carte")
     public JsonNode carte() {
         return ai.get("/ai/territoire/carte");
+    }
+
+    /** Lieux réels proposés pour les simulations (axes, ponts, carrefours, stades, marchés). */
+    @GetMapping("/lieux")
+    public JsonNode lieux() {
+        return ai.get("/ai/lieux");
     }
 
     /** Horloge de démonstration : l'instant de 2013 rejoué par l'application. */
@@ -188,6 +195,7 @@ public class AiGatewayController {
         if (body.fin() != null) scenario.put("fin", body.fin());
         scenario.put("participants", body.participants() == null ? 0 : body.participants());
         scenario.put("nb_bus", body.nbBus() == null ? 0 : body.nbBus());
+        if (body.lieu() != null) scenario.put("lieu", body.lieu());
         JsonNode result = ai.post("/ai/simulations", scenario);
         audit.log(user.id(), "SIMULATION_LANCEE", "simulation:" + result.path("id").asText(), result.path("libelle").asText());
         return result;
