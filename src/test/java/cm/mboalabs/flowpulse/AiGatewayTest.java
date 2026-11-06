@@ -16,6 +16,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -124,6 +125,16 @@ class AiGatewayTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("S-1"));
         assertThat(auditLogs.findAll()).anyMatch(l -> l.getAction().equals("SIMULATION_LANCEE"));
+
+        // Lieu réel : transmis au service IA ; un identifiant mal formé est refusé
+        String surLieu = scenario.replace("}", ",\"lieu\":\"route-boulevard-du-20-mai\"}");
+        mvc.perform(post("/api/scenarios").header("Authorization", token("urbaniste@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content(surLieu))
+                .andExpect(status().isOk());
+        verify(ai).post(eq("/ai/simulations"), argThat(m -> "route-boulevard-du-20-mai".equals(((java.util.Map<?, ?>) m).get("lieu"))));
+        mvc.perform(post("/api/scenarios").header("Authorization", token("urbaniste@flowpulse.local"))
+                        .contentType(MediaType.APPLICATION_JSON).content(surLieu.replace("route-boulevard", "Route Boulevard")))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
