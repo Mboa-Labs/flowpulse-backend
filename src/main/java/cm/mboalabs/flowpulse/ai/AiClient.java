@@ -2,6 +2,7 @@ package cm.mboalabs.flowpulse.ai;
 
 import cm.mboalabs.flowpulse.config.FlowPulseProperties;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -24,7 +27,22 @@ public class AiClient {
         factory.setConnectTimeout(Duration.ofSeconds(5));
         // Le superviseur peut mettre plus d'une minute à répondre sur un serveur sans carte graphique
         factory.setReadTimeout(Duration.ofSeconds(240));
-        this.rest = RestClient.builder().baseUrl(properties.aiService().url()).requestFactory(factory).build();
+        this.rest = RestClient.builder().baseUrl(properties.aiService().url()).requestFactory(factory)
+                .requestInterceptor((request, body, execution) -> {
+                    String langue = langueDemandee();
+                    if (langue != null) request.getHeaders().set(HttpHeaders.ACCEPT_LANGUAGE, langue);
+                    return execution.execute(request, body);
+                })
+                .build();
+    }
+
+    /** Langue de l'interface (en-tête Accept-Language du navigateur), transmise pour que les agents répondent dans cette langue. */
+    public static String langueDemandee() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributs) {
+            String valeur = attributs.getRequest().getHeader(HttpHeaders.ACCEPT_LANGUAGE);
+            if (valeur != null && !valeur.isBlank()) return valeur.toLowerCase().startsWith("en") ? "en" : "fr";
+        }
+        return null;
     }
 
     public JsonNode get(String path) {
